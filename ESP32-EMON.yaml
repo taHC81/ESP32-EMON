@@ -1,0 +1,142 @@
+esphome:
+  name: esp32-emon
+
+esp32:
+  board: wemos_d1_mini32
+  framework:
+    type: arduino
+
+wifi:
+  power_save_mode: none
+  networks:
+  - ssid: !secret wifi_ssid
+    password: !secret wifi_password
+  - ssid: !secret wifi_ssid_garage
+    password: !secret wifi_password
+
+ota:
+  password: !secret ota_password
+
+logger:
+api:
+  reboot_timeout: 0s
+
+mqtt:
+  broker: 192.168.0.102
+  discovery: false
+
+switch:
+  - platform: restart
+    name: "ESPhome EMON restart"
+
+binary_sensor:
+  - platform: gpio
+    name: "GPIO32 - elmer"
+    icon: "mdi:transmission-tower-export"
+    pin:
+      number: GPIO32
+      mode:
+        input: true
+        pullup: true
+  # - platform: gpio
+    # name: "GPIO26 - gas"
+    # icon: "mdi:gas-burner"
+    # pin:
+      # number: GPIO26
+      # mode:
+        # input: true
+        # pullup: true
+
+# WATER METER
+sensor:
+  - platform: pulse_meter
+    name: "Water Pulse Meter"
+    icon: "mdi:water"
+    pin: GPIO33
+    unit_of_measurement: "liter/min"
+    total:
+      name: "Water Meter Total"
+      unit_of_measurement: "m3"
+      id: water_meter_total
+      accuracy_decimals: 3
+      device_class: water
+      state_class: total_increasing
+      filters:
+        - multiply: 0.001
+
+# GAS METER
+  - platform: pulse_meter
+    name: "Gas Pulse Meter"
+    id: spp_gas
+    icon: "mdi:gas-burner"
+    pin:
+      number: GPIO26
+      inverted: false
+      mode:
+        input: true
+        pullup: true
+    internal_filter: 150ms
+    internal_filter_mode: PULSE
+    unit_of_measurement: "liter/min"
+    accuracy_decimals: 3
+    total:
+      name: "Gas Meter Total"
+      unit_of_measurement: "m3"
+      icon: "mdi:meter-gas-outline"
+      id: gas_meter_total
+      accuracy_decimals: 3
+      device_class: gas
+      state_class: total_increasing
+      filters:
+        - multiply: 0.01
+
+# ELECTRIC GRID METER
+  - platform: pulse_meter
+    name: 'Electricity Usage'
+    id: zse_power_kwh
+    icon: "mdi:transmission-tower-export"
+    pin:
+      number: GPIO32
+      inverted: false
+      mode:
+        input: true
+        pullup: true
+    internal_filter: 4ms
+    internal_filter_mode: PULSE
+    unit_of_measurement: 'kW'
+    accuracy_decimals: 3
+    timeout: 60s
+    filters:
+      - multiply: 0.06    # 1000 imp/kWh
+      - lambda: !lambda |-
+          if (x > 10) return {};
+          return x;
+    total:
+      name: "Electricity Total"
+      unit_of_measurement: "kWh"
+      accuracy_decimals: 3
+      filters:
+        - multiply: 0.001
+
+# TEMPLATES
+  - platform: template
+    name: "Electricity Usage W"
+    id: zse_power_watts
+    unit_of_measurement: 'W'
+    state_class: measurement
+    device_class: power
+    lambda: 'return (id(zse_power_kwh).state * 1000);'
+    update_interval: 1s
+
+  - platform: uptime
+    name: Uptime Sensor (EMON)
+
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: ESP IP Address
+    ssid:
+      name: ESP Connected SSID
